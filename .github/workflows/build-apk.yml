@@ -37,32 +37,34 @@ jobs:
             rm -rf app/app
           fi
 
-          # 3. Clean settings.gradle
+          # 3. Settings.gradle with plugin repositories
           cat << 'EOF' > settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
           rootProject.name = "QR Video"
           include ':app'
           EOF
 
-          # 4. Clean root build.gradle
+          # 4. Root build.gradle with plugin version definition
           cat << 'EOF' > build.gradle
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.2.2'
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
           }
           EOF
 
-          # 5. Fix app/build.gradle dependencies & SDKs
+          # 5. App level build.gradle
           cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -82,6 +84,9 @@ jobs:
 
               buildTypes {
                   release {
+                      minifyEnabled false
+                  }
+                  debug {
                       minifyEnabled false
                   }
               }
@@ -104,13 +109,13 @@ jobs:
           }
           EOF
 
-          # 6. Wrapper generation via Gradle 8.4
+          # 6. Generate wrapper using Gradle 8.4
           gradle wrapper --gradle-version 8.4
           chmod +x gradlew
 
       - name: Compile Release APK
         run: |
-          ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --no-daemon
 
       - name: Create Signed Release APK
         run: |
