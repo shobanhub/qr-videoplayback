@@ -1,4 +1,4 @@
-name: Build Android Project to APK
+name: Auto Repair and Build APK
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -17,33 +17,102 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Extract Project Files & Flatten Directory
+      - name: Auto-Repair Project Files
         run: |
+          # 1. Archive-ai extract seigirom
           ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
           if [ -n "$ZIP_FILE" ]; then
-            echo "Extracting $ZIP_FILE..."
             unzip -o "$ZIP_FILE"
           fi
 
-          # Files app/ folder-kulle irundhaal root-kku kondu varugirom
-          if [ -d "app" ] && [ -f "app/settings.gradle" ]; then
-            echo "Moving project files from nested app folder to root..."
-            cp -r app/* .
+          # 2. Nested app/app/src path-ai sari seigirom
+          if [ -d "app/app/src" ]; then
+            echo "Flattening nested app/app directory..."
+            cp -r app/app/* app/
+            rm -rf app/app
           fi
 
-          # Gradle wrapper-ai system gradle moolam create seigirom
-          sudo apt-get update && sudo apt-get install -y gradle
+          # 3. Clean root settings.gradle generate seigirom
+          cat << 'EOF' > settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "QR Video"
+          include ':app'
+          EOF
+
+          # 4. Standard root build.gradle generate seigirom
+          cat << 'EOF' > build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+          # 5. Missing gradle wrapper-ai setup seigirom
+          sudo apt-get update && sudo apt-get install -y gradle zipalign
           gradle wrapper
           chmod +x gradlew
 
-      - name: Build Debug APK with Gradle
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
+      - name: Compile Release APK
         run: |
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
 
-      - name: Locate and Upload APK
+      - name: Create Signed Release APK
+        run: |
+          # Release keystore generate seigirom
+          keytool -genkeypair -v \
+            -keystore release.keystore \
+            -alias qrkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass password123 \
+            -keypass password123 \
+            -dname "CN=QR Video,O=Android,C=IN"
+
+          # Output APK-vai kandupidikkirom
+          RAW_APK=$(find app/build/outputs/apk/ -name "*.apk" | head -n 1)
+
+          # Align seigirom
+          zipalign -v -p 4 "$RAW_APK" aligned-release.apk
+
+          # Sign seigirom
+          APKSIGNER=$(find $ANDROID_HOME/build-tools/ -name apksigner | sort -V | tail -n 1)
+          $APKSIGNER sign \
+            --ks release.keystore \
+            --ks-pass pass:password123 \
+            --key-pass pass:password123 \
+            --out QRVideo-Release-Signed.apk \
+            aligned-release.apk
+
+          mkdir -p output_zip
+          cp QRVideo-Release-Signed.apk output_zip/
+
+      - name: Upload Signed APK ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: QR-Video-App-Debug
-          path: "**/build/outputs/apk/**/*.apk"
+          name: QRVideo-Signed-App-ZIP
+          path: output_zip/
