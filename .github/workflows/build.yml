@@ -24,20 +24,17 @@ jobs:
 
       - name: Auto-Repair Project Files
         run: |
-          # 1. Unpack ZIP
           ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
           if [ -n "$ZIP_FILE" ]; then
             unzip -o "$ZIP_FILE"
           fi
 
-          # 2. Fix nested app/app path without deleting original configs
           if [ -d "app/app/src" ]; then
             echo "Flattening nested app/app directory..."
             cp -r app/app/* app/
             rm -rf app/app
           fi
 
-          # 3. Clean settings.gradle with JitPack & Google
           cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
@@ -58,21 +55,18 @@ jobs:
           include ':app'
           EOF
 
-          # 4. Standard root build.gradle
           cat << 'EOF' > build.gradle
           plugins {
               id 'com.android.application' version '8.2.2' apply false
           }
           EOF
 
-          # 5. Generate wrapper
           gradle wrapper --gradle-version 8.4
           chmod +x gradlew
 
       - name: Compile Release APK
         run: |
-          # Shows exact failure reason without dependency spam
-          ./gradlew assembleDebug --stacktrace --info | grep -E "error:|FAILED|FAILURE|Exception" -B 2 -A 5 || ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug
 
       - name: Create Signed Release APK
         run: |
@@ -87,7 +81,9 @@ jobs:
             -keypass password123 \
             -dname "CN=QR Video,O=Android,C=IN"
 
-          RAW_APK=$(find app/build/outputs/apk/ -name "*.apk" | head -n 1)
+          # திட்டத்தின் அனைத்து ஃபோல்டரிலும் உருவாகியுள்ள APK-ஐ தேடி எடுக்கிறது
+          RAW_APK=$(find . -type f -name "*.apk" ! -name "*unaligned*" | head -n 1)
+          echo "Found compiled APK at: $RAW_APK"
 
           zipalign -v -p 4 "$RAW_APK" aligned-release.apk
 
