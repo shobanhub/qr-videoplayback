@@ -30,14 +30,21 @@ jobs:
             unzip -o "$ZIP_FILE"
           fi
 
-          # 2. Fix nested app/app path (flatten directory)
+          # 2. Fix nested app/app path
           if [ -d "app/app/src" ]; then
             echo "Flattening nested app/app directory..."
             cp -rn app/app/* app/ || true
             rm -rf app/app
           fi
 
-          # 3. Settings.gradle with JitPack & Google
+          # 3. Create gradle.properties (Fixes checkDebugAarMetadata error)
+          cat << 'EOF' > gradle.properties
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          EOF
+
+          # 4. Settings.gradle with JitPack & Google
           cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
@@ -58,14 +65,14 @@ jobs:
           include ':app'
           EOF
 
-          # 4. Clean root build.gradle
+          # 5. Root build.gradle
           cat << 'EOF' > build.gradle
           plugins {
               id 'com.android.application' version '8.2.2' apply false
           }
           EOF
 
-          # 5. Perfect app/build.gradle with duplicate Kotlin exclusion
+          # 6. App level build.gradle with Kotlin duplicates exclusion
           cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -118,12 +125,12 @@ jobs:
               implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
               implementation 'com.google.zxing:core:3.5.3'
 
-              // Kotlin stdlib forced single version
+              // Standard Kotlin stdlib
               implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
           }
           EOF
 
-          # 6. Wrapper generation
+          # 7. Wrapper generation
           gradle wrapper --gradle-version 8.4
           chmod +x gradlew
 
