@@ -1,4 +1,4 @@
-name: Convert ZIP to APK
+name: Build Android Project to APK
 
 on:
   workflow_dispatch:
@@ -17,52 +17,32 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android Build Tools
+      - name: Extract Project Files
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zipalign
-
-      - name: Find and Extract ZIP
-        run: |
-          # Finds any .zip file present in the repo automatically
-          ZIP_NAME=$(ls *.zip 2>/dev/null | head -n 1)
-          if [ -z "$ZIP_NAME" ]; then
-            echo "ERROR: Repo-ல எந்த ஒரு .zip file-உம் கிடைக்கவில்லை!"
-            exit 1
+          # ZIP file-ai thedi extract seigirathu
+          ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Extracting $ZIP_FILE..."
+            unzip -o "$ZIP_FILE"
           fi
-          echo "Processing file: $ZIP_NAME"
-          mkdir extracted
-          unzip "$ZIP_NAME" -d extracted/
-          cd extracted
-          zip -r ../unsigned.apk .
-          cd ..
 
-      - name: Align APK
+          # Gradle wrapper-kku execution permission tharukirathu
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+          fi
+
+      - name: Build Debug APK with Gradle
         run: |
-          zipalign -v -p 4 unsigned.apk aligned.apk
+          if [ -f "gradlew" ]; then
+            ./gradlew assembleDebug --stacktrace
+          else
+            echo "Gradle wrapper illai, system gradle kondu build seigirathu..."
+            sudo apt-get update && sudo apt-get install -y gradle
+            gradle assembleDebug --stacktrace
+          fi
 
-      - name: Generate Key and Sign APK
-        run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
-
-          APKSIGNER=$(find $ANDROID_HOME/build-tools/ -name apksigner | sort -V | tail -n 1)
-          $APKSIGNER sign \
-            --ks debug.keystore \
-            --ks-pass pass:android \
-            --key-pass pass:android \
-            --out release.apk \
-            aligned.apk
-
-      - name: Upload Final APK Artifact
+      - name: Locate and Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: output-apk
-          path: release.apk
+          name: QR-Video-App-Debug
+          path: "**/build/outputs/apk/**/*.apk"
