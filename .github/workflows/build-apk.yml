@@ -17,9 +17,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Extract Project Files & Flatten Directory
         run: |
           ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
@@ -28,18 +25,20 @@ jobs:
             unzip -o "$ZIP_FILE"
           fi
 
-          # Files app/ folder-kulle irundhaal root-kku kondu varugiradhu
+          # Files app/ folder-kulle irundhaal root-kku kondu varugirom
           if [ -d "app" ] && [ -f "app/settings.gradle" ]; then
             echo "Moving project files from nested app folder to root..."
             cp -r app/* .
           fi
 
-          # Gradle wrapper generate seigirom
+          # Gradle wrapper-ai system gradle moolam create seigirom
           sudo apt-get update && sudo apt-get install -y gradle
           gradle wrapper
           chmod +x gradlew
 
       - name: Build Debug APK with Gradle
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           ./gradlew assembleDebug --stacktrace
 
