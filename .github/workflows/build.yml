@@ -26,21 +26,18 @@ jobs:
 
       - name: Extract and Rebuild Project
         run: |
-          # 1. Unzip app.zip
-          if [ -f "app.zip" ]; then
-            unzip -o app.zip[cite: 12]
-          else
-            ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)[cite: 12]
-            if [ -n "$ZIP_FILE" ]; then
-              unzip -o "$ZIP_FILE"[cite: 12]
-            fi
+          # 1. Unzip archive if available
+          ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Extracting $ZIP_FILE..."
+            unzip -o "$ZIP_FILE"
           fi
 
-          # 2. Fix nested app/app path
+          # 2. Fix nested app directory if present
           if [ -d "app/app/src" ]; then
             echo "Fixing nested directories..."
-            cp -r app/app/* app/ || true[cite: 12]
-            rm -rf app/app[cite: 12]
+            cp -r app/app/* app/ || true
+            rm -rf app/app
           fi
 
           # 3. Create gradle.properties
@@ -78,7 +75,7 @@ jobs:
           }
           EOF
 
-          # 6. App level build.gradle with WebKit
+          # 6. App build.gradle with WebKit dependency
           cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -92,3 +89,40 @@ jobs:
                   applicationId "com.qrscanner.app"
                   minSdk 24
                   targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.webkit:webkit:1.11.0'
+          }
+          EOF
+
+          # 7. Wrapper generation
+          gradle wrapper --gradle-version 8.4
+          chmod +x gradlew
+
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload Finished APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: QRScanner-App
+          path: app/build/outputs/apk/debug/*.apk
