@@ -37,14 +37,7 @@ jobs:
             rm -rf app/app
           fi
 
-          # 3. Enable AndroidX in gradle.properties
-          cat << 'EOF' > gradle.properties
-          android.useAndroidX=true
-          android.enableJetifier=true
-          org.gradle.jvmargs=-Xmx2048m
-          EOF
-
-          # 4. Clean settings.gradle with JitPack & Google
+          # 3. Settings.gradle with JitPack & Google
           cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
@@ -65,21 +58,21 @@ jobs:
           include ':app'
           EOF
 
-          # 5. Clean root build.gradle
+          # 4. Clean root build.gradle
           cat << 'EOF' > build.gradle
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.2.2'
-              }
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
           }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
+          EOF
+
+          # 5. Fix Duplicate Classes by excluding old Kotlin stdlib modules
+          cat << 'EOF' >> app/build.gradle
+
+          configurations.all {
+              exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+              exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+              resolutionStrategy {
+                  force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
               }
           }
           EOF
@@ -96,7 +89,6 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y zipalign
 
-          # Search for any generated APK
           RAW_APK=$(find . -type f -name "*.apk" ! -name "*unaligned*" | head -n 1)
           echo "Found compiled APK at: $RAW_APK"
 
